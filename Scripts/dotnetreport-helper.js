@@ -614,16 +614,20 @@ var textQuery = function (options) {
     self.queryItems = [];
     self.filterItems = [];
     self.filterField = null;
-
+    //Updated Search
     self.ParseQuery = function (token, text) {
+       if (token == '@' || !token) return;
         return ajaxcall({
             noBlocking: true,
             url: options.apiUrl,
             data: {
                 method: "/ReportApi/ParseQuery",
                 model: JSON.stringify({
-                    token: encodeURIComponent(token),
-                    text: encodeURIComponent(text)
+                    token: token,
+                    text: text,
+                    excludeTableName: true,
+                    pageSize: 25,
+                    //, onlyInReports: true
                 })
             }
         });
@@ -691,10 +695,15 @@ var textQuery = function (options) {
         return (_.find(self.queryItems, { type: 'Function' })) ? 'Summary' : 'List';
     }
 
-    self.resetQuery = function () {
+    self.resetQuery = function (searchReportFlag) {
         self.queryItems = [];
         self.filterItems = [];
-        document.getElementById("query-input").innerHTML = "Show me&nbsp;";
+        if (searchReportFlag) {
+            document.getElementById("search-input").innerHTML = '';
+        } else {
+            document.getElementById("query-input").innerHTML = "Show me&nbsp;";
+        }
+        
     }
 
     var tokenKey = '';
@@ -706,26 +715,26 @@ var textQuery = function (options) {
         headers: { "Authorization": "Bearer " + token },
         dataType: 'json',
         contentType: 'application/json',
-        data: function (params) {
+        //data: function (params) {
+        //    return params.term ? JSON.stringify({
+        //        method: "/ReportApi/ParseQuery",
+        //        model: JSON.stringify({
+        //            token: encodeURIComponent(params.term),
+        //            text: ''
+        //        })
+        //    }) : null;
+        //},
+        query: function (params) {
             return params.term ? JSON.stringify({
                 method: "/ReportApi/ParseQuery",
                 model: JSON.stringify({
-                    token: encodeURIComponent(params.term),
+                    token: params.term,
                     text: ''
                 })
             }) : null;
         },
-        query: function (params) {
-            return params.term ? {
-                method: "/ReportApi/ParseQuery",
-                model: JSON.stringify({
-                    token: encodeURIComponent(params.term),
-                    text: ''
-                })
-            } : null;
-        },
         processResults: function (data) {
-            if (data.d) data = data.d;
+            if (data.d) results = data.d;
             var items = _.map(data, function (x) {
                 return { id: x.fieldId, text: x.tableDisplay + ' > ' + x.fieldDisplay, type: 'Field', dataType: x.fieldType, foreignKey: x.foreignKey };
             });
@@ -827,7 +836,7 @@ var textQuery = function (options) {
 
         var tributeAttributes = {
             allowSpaces: true,
-            autocompleteMode: true,
+            autocompleteMode: options.searchReportFlag == true ? false : true,
             noMatchTemplate: "",
             searchOpts: {
                 skip: true, // Disable the default matching
@@ -839,6 +848,9 @@ var textQuery = function (options) {
                 if (token == "=" || token == ">" || token == "<") return;                
                 self.ParseQuery(token, "").done(function (results) {
                     if (results.d) results = results.d;
+                    results = results.filter(function (item) {
+                        return item.tableDisplay.toLowerCase() !== "lookup";
+                    });
                     var items = _.map(results, function (x) {
                         var item = { value: x.fieldId, key: x.tableDisplay + ' > ' + x.fieldDisplay, type: 'Field', dataType: x.fieldType, foreignKey: x.foreignKey, searchKey: x.tableDisplay + ' > ' + x.fieldDisplay };
                         if (options.wrapText) {
@@ -846,10 +858,9 @@ var textQuery = function (options) {
                         }
                         return item;
                     });
-                    if (options.concatFilterAndQuery) {
+                    if (options.concatFilterAndQuery && !options.searchReportFlag) {
                         var lastField = self.getLastField();
-                        if (self.detectFilterTrigger(token) && lastField != null) 
-                        {
+                        if (self.detectFilterTrigger(token) && lastField != null) {
                             if (lastField.dataType == 'DateTime') {
                                 items = self.DateFilterMethods;
                             }
@@ -857,7 +868,7 @@ var textQuery = function (options) {
                             items = items.concat(self.QueryMethods);
                             items = items.concat(self.FilterMethods);
                         }
-                    }
+                    }                   
                     callback(items);
                 });
             },
@@ -914,5 +925,41 @@ var textQuery = function (options) {
             .addEventListener("menuItemRemoved", function (e) {
                 self.queryItems.remove(e.detail.item.original);
             });
+
+    }
+
+self.setupSearch = function () {
+        var tributeAttributes = self.getTributeAttributes({ searchReportFlag: true });
+        var tribute = new Tribute(tributeAttributes);
+        var searchInput = document.getElementById('search-input');
+
+        if (searchInput) {
+            tribute.attach(searchInput);
+
+            searchInput.addEventListener("tribute-replaced", function (e) {
+                    self.addQueryItem(e.detail.item.original);
+                });
+
+            searchInput.addEventListener("menuItemRemoved", function (e) {
+                    self.queryItems.remove(e.detail.item.original);
+                });
+
+
+
+            searchInput.addEventListener('blur', function () {
+                const vm = ko.dataFor(searchInput);
+                if (vm && typeof vm.searchForReports === 'function') {
+                    vm.searchForReports();
+                }
+            });
+
+            searchInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); 
+                    searchInput.blur();
+                }
+            });
+
+        }
     }
 }

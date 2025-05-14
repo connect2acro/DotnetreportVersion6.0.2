@@ -291,7 +291,7 @@ function filterGroupViewModel(args) {
 	var self = this;
 
 	self.isRoot = args.isRoot === true ? true : false;
-	self.AndOr = ko.observable(args.AndOr || 'And');
+	self.AndOr = ko.observable(args.AndOr || 'AND');
 	self.Filters = ko.observableArray([]);
 	self.FilterGroups = ko.observableArray([]);
 
@@ -1267,9 +1267,16 @@ var reportViewModel = function (options) {
 		});
 	}
 
-	self.resetQuery = function (resetText = true) {
+	self.resetSearch = function () {
+		self.SelectedFolder(null);
+		self.designingHeader(false);
+		self.searchReports('');
+	}
+
+	self.resetQuery = function (resetText = true, searchReportFlag = false) {
 		if (resetText !== false) {
-			self.textQuery.resetQuery();
+			if (searchReportFlag === true) self.resetSearch();
+			self.textQuery.resetQuery(searchReportFlag);
 		}
 		self.ReportResult().ReportData(null);
 		self.ReportResult().HasError(false);
@@ -1386,7 +1393,7 @@ var reportViewModel = function (options) {
 	self.setFlyFilters = function () {
 		var flyfilters = [];
 		_.forEach(self.FilterGroups(), function (e) {
-			_.forEach(e.Filters(), function (x) { if (x.Field().filterOnFly()) flyfilters.push(x); });
+			_.forEach(e.Filters(), function (x) { if (x.Field() && x.Field().filterOnFly()) flyfilters.push(x); });
 		});
 
 		self.FlyFilters(flyfilters);
@@ -1670,6 +1677,10 @@ var reportViewModel = function (options) {
 
 	self.reportsInSearch = ko.observableArray([]);
 
+	self.searchForReports = function () {
+		self.searchReports($('#search-input').text());
+	}
+
 	self.searchReports.subscribe(function (x) {
 		if (x) {
 			ajaxcall({
@@ -1682,9 +1693,9 @@ var reportViewModel = function (options) {
 					})
 				}
 			}).done(function (reports) {
+				self.reportsInSearch([]);
 				if (reports.d) { reports = reports.d; }
 				if (reports.length > 0) {
-					var foundReportIds = _.map(reports, function (x) { return x.reportId });
 					self.reportsInSearch(_.filter(self.SavedReports(), function (x) {
 						var match = _.find(reports, function (y) {
 							return x.reportId == y.reportId;
@@ -1871,7 +1882,7 @@ var reportViewModel = function (options) {
 
 			self.CategorizedTables().forEach(category => {
 				category.tables.forEach(table => {
-					table.isEnabled(joinTableIds && joinTableIds.size > 0 ? joinTableIds.has(table.tableId) || !table.tableId || table.dynamicColumns : true);
+					table.isEnabled(joinTableIds && joinTableIds.size > 0 ? joinTableIds.has(table.tableId) || !table.tableId : true);
 				});
 			});
 		}, 500);
@@ -2190,7 +2201,7 @@ var reportViewModel = function (options) {
 	};
 
 	self.selectedFieldsCanFilter = ko.computed(function () {
-		return _.filter(self.SelectedFields(), function (x) { return !x.isFormulaField() });
+		return self.SelectedFields();
 	});
 
 	self.clearFormulaField = function () {
@@ -2394,18 +2405,20 @@ var reportViewModel = function (options) {
 	};
 
 	self.isFieldValidForYAxis = function (i, fieldType, aggregate) {
-		if (self.ReportType() == 'Treemap'
-			|| ["Int", "Integer", "Double", "Decimal", "Money"].indexOf(fieldType) < 0
-			|| ["Only in Detail", "Pivot"].indexOf(aggregate) > 0
-			|| i == 0) return false;
-		if (i > 0) {
-			if (self.ReportType() == "Bar" && ["Int", "Integer", "Double", "Decimal", "Money"].indexOf(fieldType) < 0 && aggregate != "Count") {
-				return false;
-			}
-		}
-		return true;
+		return !(i > 0 && (self.ReportType() == 'Treemap'
+			|| (["Int", "Integer", "Double", "Decimal", "Money"].indexOf(fieldType) < 0 && aggregate != 'Count' && aggregate != 'Count Distinct')
+			|| ["Only in Detail", "Pivot"].indexOf(aggregate) > 0))
 	};
-
+	self.IsPivotFieldLastColumn = function (i, aggregate) {
+		return i === self.SelectedFields().length - 1 && aggregate === 'Pivot';
+	};
+	self.IsDynamicFieldFirstColumn = function (i) {
+		const field = self.SelectedFields()[0];
+		return i === 0 && field?.fieldId == 0 && field?.dynamicTableId != null;
+	};
+	self.IsAllDynamicFieldSelected = function () {
+		return self.SelectedFields().every(field => field?.fieldId == 0 && field?.dynamicTableId != null);
+	};
 	self.chartTypes = ["List", "Summary", "Single", "Pivot", "Html"];
 	self.isChart = ko.computed(function () {
 		return self.chartTypes.indexOf(self.ReportType()) < 0;
@@ -2421,7 +2434,7 @@ var reportViewModel = function (options) {
 	};
 
 	self.canDrilldown = ko.computed(function () {
-		return ["List", "Pivot", "Treemap"].indexOf(self.ReportType()) < 0;
+		return ["List", "Pivot", "Treemap"].indexOf(self.ReportType()) < 0 && !self.useStoredProc();
 	});
 
 	self.dateFields = ko.computed(function () {
@@ -2935,7 +2948,14 @@ var reportViewModel = function (options) {
 			toastr.error("Select only one field for Pivot.");
 			return;
 		}
-
+		if (self.SelectedFields().slice(-1)[0]?.selectedAggregate() === 'Pivot') {
+			toastr.error("Pivot field cannot be the last column.");
+			return;
+		}
+		if (self.IsDynamicFieldFirstColumn(0) || self.IsAllDynamicFieldSelected()) {
+			toastr.error("Dynamic cannot be first column.\n Cannot be only dynamic without a parent field.");
+			return;
+		}
 		if (!skipValidation && !self.validateReport()) {
 			toastr.error("Please correct validation issues");
 			return;
@@ -3085,14 +3105,16 @@ var reportViewModel = function (options) {
 		self.ReportSeries = reportSeries;
 		self.OuterGroupColumns([]);
 		if (result.HasError || previewOnly === true) return;
-
+		function isContained(src, dst) {
+			return typeof src === 'string' && typeof dst === 'string' && dst.includes(src);
+		}
 		function matchColumnName(src, dst, dbSrc, dbDst, agg) {
 			if (src == dst) return true;
 			if (dbSrc && dbDst && dbSrc == dbDst) return true;
 
 			if (agg && dbSrc && dbDst && agg + '(' + dbSrc + ')' == dbDst) return true;
 			if (agg == 'Count Distinct' && dbSrc && dbDst && 'Count(Distinct ' + dbSrc + ')' == dbDst) return true;
-
+			if ((agg == '% over Count' || agg == '% over Sum') && src && dst && isContained(src, dst)) return true;
 			if (dst.indexOf('(Last ') > -1 || dst.indexOf('Months ago)') > -1 || dst.indexOf('Years ago)') > -1) {
 				const match = dst.match(/\((Last Year|Last Month|\d+ Years? ago|\d+ Months? ago)\)$/);
 				dst = match ? dst.replace(match[0], '').trim() : dst;
@@ -3997,7 +4019,7 @@ var reportViewModel = function (options) {
 			chart = self.barChartHorizontal() === true
 				? new google.visualization.BarChart(chartDiv)
 				: new google.visualization.ColumnChart(chartDiv);
-			chartOptions.isStacked = self.barChartStacked() === true;
+			chartOptions.isStacked = self.barChartStacked() === true;			
 		}
 
 		if (self.ReportType() == "Line") {
@@ -4172,6 +4194,28 @@ var reportViewModel = function (options) {
 		if (!chartOptions.showGridlines) { chartOptions.hAxis.gridlines = { color: 'none' }; chartOptions.vAxis.gridlines = { color: 'none' }; }
 		if (!chartOptions.showXAxisLabel) { chartOptions.hAxis.textPosition = 'none'; }
 		if (!chartOptions.showYAxisLabel) { chartOptions.vAxis.textPosition = 'none'; }
+
+		if (self.ReportType() == "Bar" || self.ReportType() == "Line" || self.ReportType() == "Combo") {
+			if (self.ReportType() == "Bar" && self.barChartHorizontal()) {
+				// Code to insert the Y-Axis title
+				var yCol = reportData?.Columns[0];
+				var yTitle = yCol?.ColumnName ? yCol.ColumnName : yCol?.fieldName || 'Category';
+				chartOptions.vAxis.title = yTitle;
+				chartOptions.vAxis.titleTextStyle = {
+					fontSize: 12,
+					italic: false
+				};
+			} else {
+				// Code to insert the X-Axis title
+				var xCol = reportData?.Columns[0];
+				var xTitle = xCol?.ColumnName ? xCol.ColumnName : xCol?.fieldName || 'Category';
+				chartOptions.hAxis.title = xTitle;
+				chartOptions.hAxis.titleTextStyle = {
+					fontSize: 12,
+					italic: false
+				};
+			}
+		}
 
 		if (chartOptions.seriesColors.length > 0) chartOptions.colors = chartOptions.seriesColors;
 		chartOptions.legend = { position: self.chartOptions().legendPosition }
@@ -4621,9 +4665,6 @@ var reportViewModel = function (options) {
 			}
 		}
 	}
-	self.RefreshReport = function () {
-		self.LoadReport(self.ReportID(), true, '');
-	};
 
 	self.RefreshReport = function () {
 		self.LoadReport(self.ReportID(), true, '');

@@ -2413,11 +2413,15 @@ var reportViewModel = function (options) {
 		return i === self.SelectedFields().length - 1 && aggregate === 'Pivot';
 	};
 	self.IsDynamicFieldFirstColumn = function (i) {
-		const field = self.SelectedFields()[0];
-		return i === 0 && field?.fieldId == 0 && field?.dynamicTableId != null;
+		const selectedFields = self.SelectedFields();
+		if (!selectedFields || selectedFields.length === 0) return false;
+		const field = selectedFields[0];
+		return i === 0 && field?.fieldId === 0 && field?.dynamicTableId != null;
 	};
 	self.IsAllDynamicFieldSelected = function () {
-		return self.SelectedFields().every(field => field?.fieldId == 0 && field?.dynamicTableId != null);
+		const selectedFields = self.SelectedFields();
+		if (!Array.isArray(selectedFields) || selectedFields.length === 0) return false;
+		return selectedFields.every(field => field?.fieldId === 0 && field?.dynamicTableId != null);
 	};
 	self.chartTypes = ["List", "Summary", "Single", "Pivot", "Html"];
 	self.isChart = ko.computed(function () {
@@ -2943,6 +2947,10 @@ var reportViewModel = function (options) {
 				return;
 			}
 		}
+		if (self.SelectedFields().length === 0) {
+			toastr.error("Please select at least one field to save or run the report.");
+			return;
+		}
 
 		if (_.filter(self.SelectedFields(), function (x) { return x.selectedAggregate() == 'Pivot' }).length > 1) {
 			toastr.error("Select only one field for Pivot.");
@@ -2960,7 +2968,11 @@ var reportViewModel = function (options) {
 			toastr.error("Please correct validation issues");
 			return;
 		}
-
+		let field = self.FilterGroups()[0]?.FilterGroups()[0]?.Filters()[0]?.Field();
+		if (field && field.fieldId === 0 && field.dynamicTableId != null) {
+			toastr.error("You can not use dynamic field is first in filter group");
+			return;
+		}
 		self.ValidateTableJoins().done(function (isValid) {
 			if (isValid) {
 
@@ -3613,7 +3625,8 @@ var reportViewModel = function (options) {
 					allExpanded: false,
 					expandSqls: '',
 					columnDetails: self.getColumnDetails(),
-					includeSubTotals: false
+					includeSubTotals: false,
+					isSubReport:true
 				}, 'xlsx');
 			}
 
@@ -3622,7 +3635,7 @@ var reportViewModel = function (options) {
 			}
 			processRow(e.Items, result.ReportData.Columns);
 		});
-		function renderTable(data) {
+		function renderTable(data, colspan) {
 			const tableBody = document.getElementById('report-table-body' + self.ReportID());
 			if (tableBody) {
 				let rowsHTML = '';
@@ -3650,16 +3663,14 @@ var reportViewModel = function (options) {
 					});
 					rowsHTML += '</tr>';
 				});
-
-				// Replace the table body content in one go
-				tableBody.innerHTML = rowsHTML ? rowsHTML : '<tr><td>No records found</td></tr>';
+				tableBody.innerHTML = rowsHTML ? rowsHTML : '<tr><td colspan="'+colspan+'">No records found</td></tr>';
 			}
 		}
 
 		reportResult.ReportData(result.ReportData);
 
 		if (self.ReportType() == 'List' || self.ShowExpandOption() || self.hasPivotColumn()) {
-			renderTable(result.ReportData.Rows);
+			renderTable(result.ReportData.Rows, result.ReportData.Columns.length);
 		}
 
 		self.pager.totalRecords(result.Pager.TotalRecords);
@@ -4455,6 +4466,7 @@ var reportViewModel = function (options) {
 				if (e.applyAllFontColor()) f.fontColor(e.fontColor());
 				if (e.applyAllBackColor()) f.backColor(e.backColor());
 				if (e.applyAllBold()) f.fontBold(e.fontBold());
+				if (e.applyAllHeaderBold()) f.headerFontBold(e.headerFontBold());
 			});
 
 			e.fieldConditionVal = [];
@@ -4665,6 +4677,9 @@ var reportViewModel = function (options) {
 			}
 		}
 	}
+	self.RefreshReport = function () {
+		self.LoadReport(self.ReportID(), true, '');
+	};
 
 	self.RefreshReport = function () {
 		self.LoadReport(self.ReportID(), true, '');
@@ -5284,6 +5299,7 @@ var reportViewModel = function (options) {
 			pivotColumn: pivotData.pivotColumn,
 			pivotFunction: pivotData.pivotFunction,
 			onlyAndGroupInColumnDetail: hasOnlyAndGroupInDetail ? JSON.stringify(onlyAndGroupInDetailColumnDetails) : null,
+			isSubReport: false
 		}, 'xlsx');
 	}
 
@@ -5721,7 +5737,7 @@ var dashboardViewModel = function (options) {
 	});
 	var currentDash = options.dashboardId > 0
 		? (_.find(self.dashboards(), { id: options.dashboardId }) || { name: '', description: '' })
-		: { name: '', description: '' }; //: (self.dashboards().length > 0 ? self.dashboards()[0] : { name: '', description: '' });
+		: (self.dashboards().length > 0 ? self.dashboards()[0] : { name: '', description: '' });
 
 	self.appSettings = {
 		useClientIdInAdmin: false,

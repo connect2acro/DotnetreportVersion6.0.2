@@ -244,6 +244,7 @@
     <Content Include="DotNetReport\ReportService.asmx" />
     <Content Include="DotNetReport\Setup.aspx" />
     <Content Include="fonts\fontawesome-webfont.svg" />
+    <Content Include="Global.asax" />
     <Content Include="Scripts\bootbox.all.js" />
     <Content Include="Scripts\bootbox.all.min.js" />
     <Content Include="Scripts\bootbox.js" />
@@ -482,6 +483,9 @@
       <SubType>ASPXCodeBehind</SubType>
     </Compile>
     <Compile Include="DotNetReport\Setup.aspx.designer.cs" />
+    <Compile Include="Global.asax.cs">
+      <DependentUpon>Global.asax</DependentUpon>
+    </Compile>
     <Compile Include="Jobs\DotNetReportJob.cs" />
     <Compile Include="Models\DotNetReportModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

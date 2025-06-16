@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Mail;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace ReportBuilder.Web.Jobs
@@ -121,8 +122,25 @@ namespace ReportBuilder.Web.Jobs
                                 var isDashboard = report.DashboardId > 0;
                                 var itemId = isDashboard ? report.DashboardId : report.ReportId;
 
-                                response = await client.GetAsync($"{apiUrl}/ReportApi/RunScheduledItem?account={accountApiKey}&dataConnect={databaseApiKey}&scheduleId={schedule.Id}&id={itemId}&localRunTime={schedule.NextRun.Value:yyyy-MM-ddTHH:mm:ss}&isDashboard={isDashboard}&clientId={clientId}&dataFilters={schedule.DataFilters}");
+                                //response = await client.GetAsync($"{apiUrl}/ReportApi/RunScheduledItem?account={accountApiKey}&dataConnect={databaseApiKey}&scheduleId={schedule.Id}&id={itemId}&localRunTime={schedule.NextRun.Value:yyyy-MM-ddTHH:mm:ss}&isDashboard={isDashboard}&clientId={clientId}&dataFilters={schedule.DataFilters}");
+                                //response.EnsureSuccessStatusCode();
+
+                                var postData = new
+                                {
+                                    account = accountApiKey,
+                                    dataConnect = databaseApiKey,
+                                    scheduleId = schedule.Id,
+                                    id = itemId,
+                                    localRunTime = schedule.NextRun?.ToString("yyyy-MM-ddTHH:mm:ss"),
+                                    isDashboard = isDashboard,
+                                    clientId = clientId,
+                                    dataFilters = schedule.DataFilters
+                                };
+
+                                var jsonContent = new StringContent(JsonConvert.SerializeObject(postData), Encoding.UTF8, "application/json");
+                                response = await client.PostAsync($"{apiUrl}/ReportApi/RunScheduledItem", jsonContent);
                                 response.EnsureSuccessStatusCode();
+
 
                                 content = await response.Content.ReadAsStringAsync();
 

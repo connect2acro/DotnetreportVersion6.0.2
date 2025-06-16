@@ -715,26 +715,26 @@ var textQuery = function (options) {
         headers: { "Authorization": "Bearer " + token },
         dataType: 'json',
         contentType: 'application/json',
-        //data: function (params) {
-        //    return params.term ? JSON.stringify({
-        //        method: "/ReportApi/ParseQuery",
-        //        model: JSON.stringify({
-        //            token: encodeURIComponent(params.term),
-        //            text: ''
-        //        })
-        //    }) : null;
-        //},
-        query: function (params) {
+        data: function (params) {
             return params.term ? JSON.stringify({
                 method: "/ReportApi/ParseQuery",
                 model: JSON.stringify({
                     token: params.term,
                     text: ''
                 })
-            }) : null;
+            }) : {};
+        },
+        query: function (params) {
+            return JSON.stringify(params.term ? {
+                method: "/ReportApi/ParseQuery",
+                model: JSON.stringify({
+                    token: params.term,
+                    text: ''
+                })
+            } : {});
         },
         processResults: function (data) {
-            if (data.d) results = data.d;
+            if (data.d) data = data.d;
             var items = _.map(data, function (x) {
                 return { id: x.fieldId, text: x.tableDisplay + ' > ' + x.fieldDisplay, type: 'Field', dataType: x.fieldType, foreignKey: x.foreignKey };
             });
@@ -759,7 +759,7 @@ var textQuery = function (options) {
             } : null;
         },
         processResults: function (data) {
-            if (data.d) results = data.d;
+            if (data.d) data = data.d;
             var items = _.map(data, function (x) {
                 x.Parameters.forEach(function (p) {
                     p.selectedField = ko.observable();

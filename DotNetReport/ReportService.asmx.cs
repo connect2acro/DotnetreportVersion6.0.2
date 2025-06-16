@@ -172,9 +172,10 @@ namespace ReportBuilder.WebForms.DotNetReport
             }
         }
 
+
         [WebMethod(EnableSession = true)]
         [ScriptMethod(ResponseFormat = ResponseFormat.Json)]
-        public async Task<DotNetReportResultModel> RunReport(string reportSql, string connectKey, string reportType, int pageNumber = 1, int pageSize = 50, string sortBy = null, bool desc = false, string reportSeries = null, string pivotColumn = null, string pivotFunction = null, string reportData = null, bool SubTotalMode = false)
+        public async Task<DotNetReportResultModel> RunReport(string reportSql, string connectKey, string reportType, int pageNumber = 1, int pageSize = 50, string sortBy = null, bool desc = false, string reportSeries = null, string pivotColumn = null, string pivotFunction = null, string reportData = null, bool SubTotalMode = false, bool useAltPivot = false)
         {
             var sql = "";
             var sqlCount = "";
@@ -206,7 +207,7 @@ namespace ReportBuilder.WebForms.DotNetReport
                         var fromIndex = DotNetReportHelper.FindFromIndex(sql);
                         sqlFields = DotNetReportHelper.SplitSqlColumns(sql);
 
-                        var sqlFrom = $"SELECT {sqlFields[0]} {sql.Substring(fromIndex)}";
+                        var sqlFrom = $"SELECT {sqlFields[0]} {sql.Substring(fromIndex)}".Replace("{FROM}", "FROM");
                         bool hasDistinct = sql.Contains("DISTINCT");
                         if (hasDistinct)
                         {
@@ -214,11 +215,20 @@ namespace ReportBuilder.WebForms.DotNetReport
                             int fromClauseIndex = sqlFrom.IndexOf("FROM", StringComparison.OrdinalIgnoreCase);
                             string distinctColumns = sqlFrom.Substring(distinctIndex, fromClauseIndex - distinctIndex).Trim();
 
-                            sqlCount = $"SELECT COUNT(*) FROM (SELECT DISTINCT {distinctColumns} {sql.Substring(fromIndex)}) AS countQry";
+                            string fromClause = sql.Substring(fromIndex).Replace("{FROM}", "FROM");
+
+                            // Remove ORDER BY if present
+                            int orderByIndex = fromClause.LastIndexOf("ORDER BY", StringComparison.OrdinalIgnoreCase);
+                            if (orderByIndex > -1)
+                            {
+                                fromClause = fromClause.Substring(0, orderByIndex).Trim();
+                            }
+
+                            sqlCount = $"SELECT COUNT(*) FROM (SELECT DISTINCT {distinctColumns} {sql.Substring(fromIndex).Replace("{FROM}", "FROM")}) AS countQry";
                         }
                         else
                         {
-                            sqlCount = $"SELECT COUNT(*) FROM ({(sqlFrom.Contains("ORDER BY") ? sqlFrom.Substring(0, sqlFrom.IndexOf("ORDER BY", StringComparison.OrdinalIgnoreCase)) : sqlFrom)}) AS countQry";
+                            sqlCount = $"SELECT COUNT(*) FROM ({(sqlFrom.Contains("ORDER BY") ? sqlFrom.Substring(0, sqlFrom.LastIndexOf("ORDER BY", StringComparison.OrdinalIgnoreCase)) : sqlFrom)}) AS countQry";
                         }
                         if (!String.IsNullOrEmpty(sortBy))
                         {
@@ -247,6 +257,8 @@ namespace ReportBuilder.WebForms.DotNetReport
 
                         if (sql.Contains("__jsonc__"))
                             sql = sql.Replace("__jsonc__", "");
+
+                        sql = sql.Replace("{FROM}", "FROM");
                     }
                     // Execute sql
                     var connectionString = DotNetReportHelper.GetConnectionString(connectKey);
@@ -254,7 +266,7 @@ namespace ReportBuilder.WebForms.DotNetReport
 
                     var dtPagedRun = new DataTable();
 
-                    if (!string.IsNullOrEmpty(pivotColumn) && !DotNetReportHelper.useAltPivot)
+                    if (!string.IsNullOrEmpty(pivotColumn) && !useAltPivot)
                     {
                         sql = sql.Remove(sql.IndexOf("SELECT "), "SELECT ".Length).Insert(sql.IndexOf("SELECT "), "SELECT TOP 1 ");
                     }
@@ -284,7 +296,7 @@ namespace ReportBuilder.WebForms.DotNetReport
 
                         if (!string.IsNullOrEmpty(pivotColumn))
                         {
-                            if (!DotNetReportHelper.useAltPivot)
+                            if (!useAltPivot)
                             {
                                 var pd = await DotNetReportHelper.GetPivotTable(databaseConnection, connectionString, dtPagedRun, sql, sqlFields, reportData, pivotColumn, pivotFunction, pageNumber, pageSize, sortBy, desc, SubTotalMode);
                                 dtPagedRun = pd.dt;
@@ -293,8 +305,15 @@ namespace ReportBuilder.WebForms.DotNetReport
                             }
                             else
                             {
+                                reportData = reportData.Replace("\"DrillDownRowUsePlaceholders\":false", $"\"DrillDownRowUsePlaceholders\":true");
                                 var ds = await DotNetReportHelper.GetDrillDownData(databaseConnection, connectionString, dtPagedRun, sqlFields, reportData);
                                 dtPagedRun = DotNetReportHelper.PushDatasetIntoDataTable(dtPagedRun, ds, pivotColumn, pivotFunction, reportData);
+                                if (SubTotalMode)
+                                {
+                                    var columnorder = DotNetReportHelper.GetuseAltPivotColumnOrder(reportData);
+                                    dtPagedRun = DotNetReportHelper.ReorderDataTableColumns(dtPagedRun, columnorder);
+                                }
+
                             }
                             var keywordsToExclude = new[] { "Count", "Sum", "Max", "Avg" };
                             fields = fields
@@ -455,7 +474,14 @@ namespace ReportBuilder.WebForms.DotNetReport
             var dashboards = (GetDashboardsData(adminMode));
             if (!id.HasValue && dashboards.Count > 0)
             {
-                id = dashboards.First().Id;
+                try
+                {
+                    id = dashboards.First().Id;
+                }
+                catch (Exception)
+                {
+                    id = dashboards[0]["Id"];
+                }
             }
 
             using (var client = new HttpClient())

@@ -496,7 +496,7 @@ namespace ReportBuilder.Web.Models
     {
         private readonly static string _configFileName = "appsettings.dotnetreport.json";
         public readonly static string dbtype = DbTypes.MS_SQL.ToString().Replace("_", " ");
-        public readonly static bool useAltPivot = false;
+        public static bool useAltPivot = false;
 
         public static string GetConnectionString(string key, bool addOledbProvider = false)
         {
@@ -1303,7 +1303,7 @@ namespace ReportBuilder.Web.Models
                                 ");
             }
 
-            var reportData = reportDataJson.Replace("\"DrillDownRow\":[]", $"\"DrillDownRow\": [{string.Join(",", drilldownRow)}]").Replace("\"IsAggregateReport\":true", "\"IsAggregateReport\":false");
+            var reportData = reportDataJson.Replace("\"DrillDownRow\":[]", $"\"DrillDownRow\": [{string.Join(",", drilldownRow)}]").Replace("\"IsAggregateReport\":true", "\"IsAggregateReport\":false,\"IsPivotMode\":true");
             var drilldownSql = RunReportApiCall(reportData);
 
             var dts = new DataSet();
@@ -1363,7 +1363,7 @@ namespace ReportBuilder.Web.Models
                 ");
             }
 
-            var reportData = reportDataJson.Replace("\"DrillDownRow\":[]", $"\"DrillDownRow\": [{string.Join(",", drilldownRow)}]").Replace("\"IsAggregateReport\":true", "\"IsAggregateReport\":false");
+            var reportData = reportDataJson.Replace("\"DrillDownRow\":[]", $"\"DrillDownRow\": [{string.Join(",", drilldownRow)}]").Replace("\"IsAggregateReport\":true", "\"IsAggregateReport\":false,\"IsPivotMode\":true");
             var drilldownSql = RunReportApiCall(reportData);
 
             if (!string.IsNullOrEmpty(drilldownSql))
@@ -1526,7 +1526,7 @@ namespace ReportBuilder.Web.Models
                                 ");
             }
 
-            var reportData = reportDataJson.Replace("\"DrillDownRow\":[]", $"\"DrillDownRow\": [{string.Join(",", drilldownRow)}]").Replace("\"IsAggregateReport\":true", "\"IsAggregateReport\":false");
+            var reportData = reportDataJson.Replace("\"DrillDownRow\":[]", $"\"DrillDownRow\": [{string.Join(",", drilldownRow)}]").Replace("\"IsAggregateReport\":true", "\"IsAggregateReport\":false,\"IsPivotMode\":true");
             var drilldownSql = RunReportApiCall(reportData);
 
             var dts = new DataSet();
@@ -1657,6 +1657,61 @@ namespace ReportBuilder.Web.Models
             }
 
             return desiredOrder;
+        }
+        public static List<string> GetuseAltPivotColumnOrder(string reportDataJson)
+        {
+            var desiredOrder = new List<string>();
+            if (!string.IsNullOrEmpty(reportDataJson))
+            {
+                JObject reportSettingObject = JObject.Parse(reportDataJson);
+                var reportSettingsObject = (string)reportSettingObject["ReportSettings"];
+
+                if (!string.IsNullOrEmpty(reportSettingsObject))
+                {
+                    JObject pivotColumnsObject = JObject.Parse(reportSettingsObject);
+                    var pivotColumnsArray = pivotColumnsObject["PivotColumnsWidth"] as JArray;
+                    if (pivotColumnsArray != null)
+                    {
+                        foreach (var column in pivotColumnsArray)
+                        {
+                            string fieldName = column["FieldName"]?.ToString();
+                            if (!string.IsNullOrEmpty(fieldName))
+                            {
+                                desiredOrder.Add(fieldName);
+                            }
+                        }
+                    }
+                }
+            }
+            return desiredOrder;
+        }
+        public static DataTable ReorderDataTableColumns(DataTable originalTable, List<string> desiredColumnOrder)
+        {
+            var reorderedTable = new DataTable();
+            foreach (var columnName in desiredColumnOrder)
+            {
+                if (originalTable.Columns.Contains(columnName))
+                {
+                    reorderedTable.Columns.Add(columnName, originalTable.Columns[columnName].DataType);
+                }
+            }
+            foreach (DataColumn col in originalTable.Columns)
+            {
+                if (!reorderedTable.Columns.Contains(col.ColumnName))
+                {
+                    reorderedTable.Columns.Add(col.ColumnName, col.DataType);
+                }
+            }
+            foreach (DataRow row in originalTable.Rows)
+            {
+                var newRow = reorderedTable.NewRow();
+                foreach (DataColumn col in reorderedTable.Columns)
+                {
+                    newRow[col.ColumnName] = row[col.ColumnName];
+                }
+                reorderedTable.Rows.Add(newRow);
+            }
+            return reorderedTable;
         }
         static List<dynamic> GetGroupFunctionList(string jsonString)
         {
@@ -2765,6 +2820,7 @@ namespace ReportBuilder.Web.Models
                         await page.SetViewportAsync(new ViewPortOptions { Width = width });
                         await page.AddStyleTagAsync(new AddTagOptions { Content = "@page {size: landscape }" });
                         pdfOptions.Width = $"{width}px";
+                        pdfOptions.MarginOptions.Right = "0.5in";
                     }
                     await page.EvaluateExpressionAsync("$('.report-inner').css('transform','none')");
                     await page.PdfAsync(pdfFile, pdfOptions);

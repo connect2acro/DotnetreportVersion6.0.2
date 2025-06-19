@@ -168,7 +168,7 @@ namespace ReportBuilder.WebForms.DotNetReport
                 }
 
                 Context.Response.StatusCode = (int)response.StatusCode;
-                return new JavaScriptSerializer().Deserialize<dynamic>(stringContent);
+                return new JavaScriptSerializer { MaxJsonLength = int.MaxValue }.Deserialize<dynamic>(stringContent);
             }
         }
 

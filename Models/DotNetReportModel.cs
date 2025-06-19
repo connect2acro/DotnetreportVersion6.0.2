@@ -775,7 +775,16 @@ namespace ReportBuilder.Web.Models
                 }
             }
         }
-        private static void FormatExcelSheet(DataTable dt, ExcelWorksheet ws, int rowstart, int colstart, List<ReportHeaderColumn> columns = null, bool includeSubtotal = false, bool loadHeader = true, string chartData = null,bool isexpanded=false,bool isSubReport=false)
+        public static string UpdateOnlyTop(string expandSqls)
+        {
+            var jsonObj = JObject.Parse(expandSqls);
+            if (jsonObj["OnlyTop"]?.Type != JTokenType.Null)
+            {
+                jsonObj["OnlyTop"] = null;
+            }
+            return jsonObj.ToString();
+        }
+private static void FormatExcelSheet(DataTable dt, ExcelWorksheet ws, int rowstart, int colstart, List<ReportHeaderColumn> columns = null, bool includeSubtotal = false, bool loadHeader = true, string chartData = null,bool isexpanded=false,bool isSubReport=false)
         {
             RemoveColumnsBySubstring(dt, "__prm__");
             ws.Cells[rowstart, colstart].LoadFromDataTable(dt, loadHeader);
@@ -2018,6 +2027,7 @@ namespace ReportBuilder.Web.Models
                         {
                             reportData = reportData.Replace("\"IsAggregateReport\":true", "\"IsAggregateReport\":false");
                         }
+                        reportData = UpdateOnlyTop(reportData);
                         var drilldownSql = RunReportApiCall(reportData);
                         if (drilldownSql.StartsWith("{\"sql\""))
                         {
@@ -2028,10 +2038,11 @@ namespace ReportBuilder.Web.Models
                         var combinedSqls = "";
                         if (!string.IsNullOrEmpty(drilldownSql))
                         {
+                            var filteredSql = "";
                             foreach (DataRow ddr in dt.Rows)
                             {
                                 i = 0;
-                                var filteredSql = drilldownSql;
+                                filteredSql = drilldownSql;
                                 foreach (DataColumn dc in dt.Columns)
                                 {
                                     var value = ddr[dc].ToString().Replace("'", "''");
@@ -2040,7 +2051,6 @@ namespace ReportBuilder.Web.Models
 
                                 combinedSqls += filteredSql += ";\n";
                             }
-
                             var dts = databaseConnection.ExecuteDataSetQuery(connectionString, combinedSqls, qry.parameters);
 
                             foreach (DataTable ddt in dts.Tables)
@@ -3609,7 +3619,7 @@ namespace ReportBuilder.Web.Models
                 using (var conn = new SqlConnection(connectionString))
                 using (var cmd = new SqlCommand(combinedSqls, conn))
                 using (var adp = new SqlDataAdapter(cmd))
-                {
+                {                    
                     if (parameters != null)
                     {
                         parameters.ForEach(x => cmd.Parameters.Add(new SqlParameter(x.Key, x.Value)));

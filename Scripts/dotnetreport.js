@@ -1303,6 +1303,13 @@ var reportViewModel = function (options) {
 					}
 				}).done(function (result) {
 					if (result.d) result = result.d;
+					const tableId = result[0].tableId;
+					const joinIds = self.joinIds(); 
+					const isJoinRequiredButMissing =  joinIds && joinIds.size > 0 ? !joinIds.has(tableId) && tableId: false;
+					if (isJoinRequiredButMissing) {
+						toastr.error("Cannot use table as joins do not exist");
+						return;
+					}
 					self.SelectedFields.push(self.setupField(result[0]));
 					self.textQuery.searchFields.selectedOption(null);
 				});
@@ -1873,6 +1880,7 @@ var reportViewModel = function (options) {
 	}
 
 	self.lastPickedField = ko.observable();
+	self.joinIds = ko.observable();
 	self.SelectedFields.subscribe(function (fields) {
 		setTimeout(function () {
 			self.RemoveInvalidFilters(self.FilterGroups());
@@ -1880,7 +1888,7 @@ var reportViewModel = function (options) {
 			const joinTableIds = fields.length > 0
 				? new Set(fields.map(field => field.joinTableIds).flat().filter(id => id))
 				: null;
-
+			self.joinIds(joinTableIds);
 			self.CategorizedTables().forEach(category => {
 				category.tables.forEach(table => {
 					table.isEnabled(joinTableIds && joinTableIds.size > 0 ? joinTableIds.has(table.tableId) || !table.tableId : true);
@@ -2119,7 +2127,7 @@ var reportViewModel = function (options) {
 
 		var result = true;
 		_.forEach(allFields, function (x) {
-			if (!x.setupFormula.isParenthesesStart() && !x.setupFormula.isParenthesesEnd() && !x.setupFormula.isConstantValue() && x.fieldType && x.fieldType.indexOf("Date") < 0) {
+			if (x.fieldType == 'Custom' || (!x.setupFormula.isParenthesesStart() && !x.setupFormula.isParenthesesEnd() && !x.setupFormula.isConstantValue() && x.fieldType && x.fieldType.indexOf("Date") < 0)) {
 				result = false;
 				return false;
 			}
@@ -2354,7 +2362,12 @@ var reportViewModel = function (options) {
 		});
 
 		var field = self.getEmptyFormulaField();
-
+		if (field.fieldFormat == 'Integer' || field.fieldFormat == 'Decimal' || field.fieldFormat == 'Currency') {
+			field.fieldType = "Int";
+            field.fieldFilter = ['=', '>', '<', '>=', '<=', 'not equal','is blank', 'is not blank'];
+		} else {
+			field.fieldFilter = ['=', 'in', 'not in', 'like', 'not like', 'not equal', 'is blank', 'is not blank'];
+		}
 		self.SelectedFields.push(self.setupField(field));
 		self.clearFormulaField();
 		self.isFormulaField(false);
@@ -4774,6 +4787,16 @@ var reportViewModel = function (options) {
 					e = self.setupField(e);
 				});
 
+				_.forEach(report.SelectedFields,function (field) {
+					if (
+						field.fieldId === 0 &&
+						field.tableName === "Custom" &&
+						field.dynamicTableId === null
+					) {
+						if (field.fieldFormat() === 'Integer' || field.fieldFormat() === 'Decimal' || field.fieldFormat() === 'Currency')
+							field.fieldType = "Int"; 
+					}
+				});
 				self.SelectedFields(report.SelectedFields);
 				self.lastPickedField(null);
 				return self.PopulateReport(report, filterOnFly, reportSeries);

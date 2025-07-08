@@ -312,7 +312,7 @@ namespace ReportBuilder.WebForms.DotNetReport
                                 {
                                     var columnorder = DotNetReportHelper.GetuseAltPivotColumnOrder(reportData);
                                     dtPagedRun = DotNetReportHelper.ReorderDataTableColumns(dtPagedRun, columnorder);
-                                }
+                                }                              
 
                             }
                             var keywordsToExclude = new[] { "Count", "Sum", "Max", "Avg" };

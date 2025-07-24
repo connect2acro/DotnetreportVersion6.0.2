@@ -374,7 +374,12 @@ function filterGroupViewModel(args) {
 		//	filter.Value(null);
 		//	filter.Value2(null);
 		//});
-
+		filter.Value.subscribe(function (value) {
+			filter.fmtValue(value)
+		});
+		filter.Value2.subscribe(function (value) {
+			filter.fmtValue2(value)
+		});
 		function loadLookupList(fieldId, dataFilters) {
 			if (printMode === true) return;
 			ajaxcall({
@@ -884,6 +889,17 @@ var reportViewModel = function (options) {
 	self.PivotColumnsWidth = ko.observable();
 	self.ReportColumns = ko.observable();
 	self.useAltPivot = true;
+	self.isModalOpen = ko.observable(false);
+
+	$(document).on('shown.bs.modal', '.modal', function () {
+		self.isModalOpen(true);
+	});
+
+	$(document).on('hidden.bs.modal', '.modal', function () {
+		const anyOpen = $('.modal.show').length > 0;
+		self.isModalOpen(anyOpen);
+	});
+
 	self.FilterGroups.subscribe(function (newArray) {
 		if (newArray && newArray.length == 0) {
 			self.FilterGroups.push(new filterGroupViewModel({ isRoot: true, parent: self, options: options }));
@@ -2945,7 +2961,7 @@ var reportViewModel = function (options) {
 			self.RunReport(false);
 		});
 
-		self.RunReport(false);
+		self.RunReport(false);		
 	}
 
 	self.copySqlToClipboard = function (button) {
@@ -5811,6 +5827,16 @@ var dashboardViewModel = function (options) {
 	self.arrangeDashboard = ko.observable(false);
 	self.ReportResult = ko.observable({
 		ReportSql: ko.observable()		
+	});
+	self.isModalOpen = ko.observable(false);
+
+	$(document).on('shown.bs.modal', '.modal', function () {
+		self.isModalOpen(true);
+	});
+
+	$(document).on('hidden.bs.modal', '.modal', function () {
+		const anyOpen = $('.modal.show').length > 0;
+		self.isModalOpen(anyOpen);
 	});
 	var currentDash = options.dashboardId > 0
 		? (_.find(self.dashboards(), { id: options.dashboardId }) || { name: '', description: '' })

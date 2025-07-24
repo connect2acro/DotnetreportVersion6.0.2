@@ -595,7 +595,7 @@ Its Recommended you use it as is, and only change styling as needed to match you
                 <div data-bind="with: ReportResult" class="report-view">
                     <div data-bind="ifnot: HasError">
                         <div data-bind="with: $root">
-
+                            <div data-bind="ifnot: isModalOpen">
                             <div data-bind="if: EditFiltersOnReport">
                                 <div class="card">
                                     <div class="card-header">
@@ -624,6 +624,7 @@ Its Recommended you use it as is, and only change styling as needed to match you
                                 <div data-bind="template: {name: 'fly-filter-template'}"></div>
                                 <br />
                             </div>
+                          </div>
                             <div class="report-render" data-bind="css: { 'report-expanded': isExpanded }">
                                 <div class="report-menubar">
                                     <div class="col-xs-12 col-centered" data-bind="with: pager">

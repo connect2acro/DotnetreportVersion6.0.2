@@ -139,7 +139,8 @@ namespace ReportBuilder.WebForms.DotNetReport
                     { "clientId", settings.ClientId },
                     { "userId", settings.UserId },
                     { "userIdForSchedule", Convert.ToString(settings.UserIdForSchedule) },
-                    { "userRole", string.Join(",", settings.CurrentUserRole) }
+                    { "userRole", string.Join(",", settings.CurrentUserRole) },
+                    { "useParameters", "false" }                  
                 };
 
                 var data = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(model);

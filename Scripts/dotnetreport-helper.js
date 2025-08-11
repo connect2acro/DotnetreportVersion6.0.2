@@ -338,6 +338,15 @@ ko.bindingHandlers.select2Text = {
     }
 };
 
+ko.bindingHandlers.notifyChange = {
+    init: function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+        const callback = valueAccessor(); // function to call
+        element.addEventListener('change', function () {
+            callback(element.value); // Pass selected value
+        });
+    }
+};
+
 
 ko.bindingHandlers.highlightedText = {
     update: function (element, valueAccessor) {

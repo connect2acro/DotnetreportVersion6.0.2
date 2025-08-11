@@ -13,7 +13,7 @@ namespace DotnetreportVersion6._0._2
         protected void Application_Start(object sender, EventArgs e)
         {
             //'Add this line of code to run SelfServicereport from global.aspx file
-            ReportBuilder.Web.Jobs.JobScheduler.Start();
+           ReportBuilder.Web.Jobs.JobScheduler.Start();
         }
 
         protected void Session_Start(object sender, EventArgs e)

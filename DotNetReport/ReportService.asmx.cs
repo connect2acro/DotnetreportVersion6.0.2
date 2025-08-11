@@ -215,6 +215,8 @@ namespace ReportBuilder.WebForms.DotNetReport
                             int distinctIndex = sqlFrom.IndexOf("DISTINCT", StringComparison.OrdinalIgnoreCase) + 8;
                             int fromClauseIndex = sqlFrom.IndexOf("FROM", StringComparison.OrdinalIgnoreCase);
                             string distinctColumns = sqlFrom.Substring(distinctIndex, fromClauseIndex - distinctIndex).Trim();
+                            if (sqlFields.Count > 1)
+                                distinctColumns = string.Join(", ", sqlFields);
 
                             string fromClause = sql.Substring(fromIndex).Replace("{FROM}", "FROM");
 
@@ -225,7 +227,8 @@ namespace ReportBuilder.WebForms.DotNetReport
                                 fromClause = fromClause.Substring(0, orderByIndex).Trim();
                             }
 
-                            sqlCount = $"SELECT COUNT(*) FROM (SELECT DISTINCT {distinctColumns} {sql.Substring(fromIndex).Replace("{FROM}", "FROM")}) AS countQry";
+                            //sqlCount = $"SELECT COUNT(*) FROM (SELECT DISTINCT {distinctColumns} {sql.Substring(fromIndex).Replace("{FROM}", "FROM")}) AS countQry";
+                            sqlCount = $"SELECT COUNT(*) FROM (SELECT DISTINCT {distinctColumns} {fromClause}) AS countQry";
                         }
                         else
                         {

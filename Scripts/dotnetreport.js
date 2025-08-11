@@ -3927,7 +3927,10 @@ var reportViewModel = function (options) {
 		showYAxisLabel: true,
 		showLegend: true,
 		legendPosition: "right",
-		showGridlines: true
+		showGridlines: true,
+		yAxisFormat: "",
+		yMin: null,
+		yMax: null
 	});
 
 	self.showSettings = ko.observable(false);
@@ -3958,6 +3961,11 @@ var reportViewModel = function (options) {
 
 	self.updateChart = function () {
 		self.DrawChart(); 
+	};
+
+	self.updateLegend = function (selectedValue) {
+		self.chartOptions().legendPosition = selectedValue;
+		self.DrawChart();
 	};
 
 	self.skipDraw = options.skipDraw === true ? true : false;
@@ -4063,17 +4071,17 @@ var reportViewModel = function (options) {
 					prefix: prefixFormat
 				});
 				formatter.format(data, 1);
-				chartOptions.vAxis = { format: `${prefixFormat}#` }
+				chartOptions.vAxis = { format: `${prefixFormat}#` }				
 			}
 		}
 		if (!reportData?.Columns[1].groupInGraph() && (reportData?.Rows?.[0]?.Items?.[1]?.FormattedValue || '').trim().endsWith('%'))
-		{
+		{			
 			var percentFormatter = new google.visualization.NumberFormat({
 				suffix: '%',
 				fractionDigits: 2 // optional: 2 decimal points
 			});
 			percentFormatter.format(data, 1);
-			chartOptions.vAxis = { format: '#%' };
+			chartOptions.vAxis = { format: "#'%'" };		
 		}
 		if (options.chartSize) {
 			chartOptions.width = options.chartSize.width;
@@ -4277,6 +4285,34 @@ var reportViewModel = function (options) {
 		if (!chartOptions.showGridlines) { chartOptions.hAxis.gridlines = { color: 'none' }; chartOptions.vAxis.gridlines = { color: 'none' }; }
 		if (!chartOptions.showXAxisLabel) { chartOptions.hAxis.textPosition = 'none'; }
 		if (!chartOptions.showYAxisLabel) { chartOptions.vAxis.textPosition = 'none'; }
+
+		//if (self.chartOptions().yAxisFormat) {
+		const yAxisFormat = self.chartOptions()?.yAxisFormat;
+		if (yAxisFormat && yAxisFormat.includes('%')) {
+			switch (yAxisFormat) {
+				case '%':
+				case '#%':
+					chartOptions.vAxis.format = "#'%'";
+					break;
+				case '%#':
+					chartOptions.vAxis.format = "'%'#";
+					break;
+				default:
+					chartOptions.vAxis.format = yAxisFormat;
+			}
+		} else {
+			chartOptions.vAxis.format = yAxisFormat;
+			}
+		//}		
+
+		if (self.chartOptions().yMin !== null && self.chartOptions().yMin !== "") {
+			chartOptions.vAxis.viewWindow = chartOptions.vAxis.viewWindow || {};
+			chartOptions.vAxis.viewWindow.min = Number(self.chartOptions().yMin);
+		}
+		if (self.chartOptions().yMax !== null && self.chartOptions().yMax !== "") {
+			chartOptions.vAxis.viewWindow = chartOptions.vAxis.viewWindow || {};
+			chartOptions.vAxis.viewWindow.max = Number(self.chartOptions().yMax);
+		}
 
 		if (self.ReportType() == "Bar" || self.ReportType() == "Line" || self.ReportType() == "Combo") {
 			if (self.ReportType() == "Bar" && self.barChartHorizontal()) {

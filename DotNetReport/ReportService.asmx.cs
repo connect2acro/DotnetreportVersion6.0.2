@@ -65,7 +65,7 @@ namespace ReportBuilder.WebForms.DotNetReport
             }
 
             // Uncomment if you want to restrict max records returned
-            sql = sql.Replace("SELECT ", "SELECT TOP 500 ");
+            sql = sql.Substring(0, 0) + "SELECT DISTINCT TOP 500 " + sql.Substring(0 + "SELECT ".Length);
 
             var json = new StringBuilder();
             var dt = new DataTable();
@@ -132,6 +132,7 @@ namespace ReportBuilder.WebForms.DotNetReport
             using (var client = new HttpClient())
             {
                 var settings = GetSettings();
+                //var dataFilters = JsonConvert.SerializeObject(settings.DataFilters);
                 var requestData = new Dictionary<string, object>
                 {
                     { "account", settings.AccountApiToken },
@@ -140,10 +141,19 @@ namespace ReportBuilder.WebForms.DotNetReport
                     { "userId", settings.UserId },
                     { "userIdForSchedule", Convert.ToString(settings.UserIdForSchedule) },
                     { "userRole", string.Join(",", settings.CurrentUserRole) },
+                    //{ "dataFilters", dataFilters },                    
                     { "useParameters", "false" }                  
                 };
 
-                var data = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(model);
+                var data = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(model);                
+                //var data = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>(model) ?? new Dictionary<string, dynamic>();
+                //if (method.EndsWith("/GetLookupList", StringComparison.OrdinalIgnoreCase) && data.ContainsKey("dataFilters"))
+                //{
+                //    var clientDataFilter = JsonConvert.SerializeObject(data["dataFilters"]);
+                //    var mergedFilters = MergeDataFilters(dataFilters, clientDataFilter);                    
+                //    requestData.Remove("dataFilters");                    
+                //    requestData.Add("dataFilters", JsonConvert.SerializeObject(mergedFilters));
+                //}
                 foreach (var key in data.Keys)
                 {
                     if ((key != "adminMode" || (key == "adminMode" && settings.CanUseAdminMode)) && data[key] != null)
@@ -171,6 +181,20 @@ namespace ReportBuilder.WebForms.DotNetReport
                 Context.Response.StatusCode = (int)response.StatusCode;
                 return new JavaScriptSerializer { MaxJsonLength = int.MaxValue }.Deserialize<dynamic>(stringContent);
             }
+        }
+
+        private Dictionary<string, dynamic> MergeDataFilters(string serverFiltersJson, string clientFiltersJson)
+        {
+            var server = new JavaScriptSerializer().Deserialize<Dictionary<string, dynamic>>(serverFiltersJson) ?? new Dictionary<string, dynamic>();
+
+            var client = new JavaScriptSerializer().Deserialize<Dictionary<string, dynamic>>(clientFiltersJson) ?? new Dictionary<string, dynamic>();
+
+            foreach (var kv in client)
+            {
+                server[kv.Key] = kv.Value;
+            }
+
+            return server;
         }
 
 
@@ -227,7 +251,6 @@ namespace ReportBuilder.WebForms.DotNetReport
                                 fromClause = fromClause.Substring(0, orderByIndex).Trim();
                             }
 
-                            //sqlCount = $"SELECT COUNT(*) FROM (SELECT DISTINCT {distinctColumns} {sql.Substring(fromIndex).Replace("{FROM}", "FROM")}) AS countQry";
                             sqlCount = $"SELECT COUNT(*) FROM (SELECT DISTINCT {distinctColumns} {fromClause}) AS countQry";
                         }
                         else

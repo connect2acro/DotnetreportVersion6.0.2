@@ -35,7 +35,7 @@
                 });
 
                 var dashboardId = parseInt(queryParams.id || 0);
-                //if (!dashboardId && dashboards.length > 0) { dashboardId = dashboards[0].id; }
+                if (!dashboardId && dashboards.length > 0) { dashboardId = dashboards[0].id; }
 
                 ajaxcall({ url: svc + 'LoadSavedDashboard', data: { id: dashboardId || null, adminMode: adminMode } }).done(function (reportsData) {
                     if (reportsData.d) { reportsData = reportsData.d; }
@@ -124,7 +124,7 @@
     <div class="col-12">
         <ul class="nav nav-tabs" data-bind="foreach: dashboards">
             <li class="nav-item">
-                <h2>
+                <h2 style="font-size: 14pt !important">
                     <a class="nav-link" href="#" data-bind="text: name, click: function() { $parent.selectDashboard(id);}, css: { 'active': $parent.currentDashboard().id === id, 'selected-tab': $parent.currentDashboard().id === id }"></a>
                 </h2>
             </li>
@@ -230,7 +230,7 @@
         <div class="modal-content" data-bind="with: dashboard">
             <div class="modal-header">
                 <h4 class="modal-title" id="add-dashboard-modal-label"><span data-bind="text: Id() ? 'Edit' : 'Add'"></span> Dashboard</h4>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" data-bind="click: $root.onModalCloseClicked" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-4 card card-body">
@@ -326,7 +326,7 @@
 
 
 <div class="grid-stack" data-bind="visible: reports().length>0, foreach: reports" style="display: none;">
-    <div class="grid-stack-item" data-bind="attr: {'data-gs-x': x, 'data-gs-y': y, 'data-gs-width': width, 'data-gs-height': height, 'data-gs-auto-position': true, 'data-gs-id': ReportID}">
+    <div class="grid-stack-item" data-bind="attr:$parent.isOverlap()? {'data-gs-width': width, 'data-gs-height': height, 'data-gs-auto-position': true, 'data-gs-id': ReportID}:{'data-gs-x': x, 'data-gs-y': y, 'data-gs-width': width, 'data-gs-height': height, 'data-gs-auto-position': true, 'data-gs-id': ReportID}">
 
         <div class="card" data-bind="attr: {class: 'card ' + panelStyle + ' grid-stack-item-content'}, css: { expanded: isExpanded }, style: { border: noDashboardBorders() ? 'none' : '', 'box-shadow': noDashboardBorders() ? 'none' : '' }" " style="overflow-y: hidden;">
             <div class="padded-div" style="padding-bottom: 0; margin-bottom: 0;">
@@ -414,10 +414,10 @@
             </div>
             <div class="form-inline" data-bind="ifnot: noDashboardBorders">
                 <div class="small" data-bind="with: pager">
-                    <div class="form-group pull-left total-records" data-bind="if: totalRecords()>1">
+                    <div class="form-group pull-left total-records" data-bind="if: totalRecords()>1 && $parent.ReportType() != 'Single'">
                         <span data-bind="text: 'Total Records: ' + totalRecords()"></span><br />
                     </div>
-                    <div class="form-group pull-right" data-bind="if: pages()>1">
+                    <div class="form-group pull-right" data-bind="if: pages()>1 && $parent.ReportType() != 'Single'">
                         <div data-bind="template: 'pager-template', data: $data"></div>
                     </div>
                     <div class="clearfix"></div>
